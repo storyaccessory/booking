@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STORY 體驗店預約申請</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --green: #50a87a;
+      --green-light: #eef8f3;
+      --green-mid: #62c490;
+      --green-dark: #3a8060;
+      --border: #c5ddd0;
+      --muted: #7aaa94;
+      --text: #1e3228;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f2f6f4;
+      min-height: 100vh;
+      padding: 0 0 48px;
+      color: var(--text);
+    }
+
+    /* Header */
+    .site-header {
+      background: linear-gradient(135deg, #50a87a 0%, #3a8060 100%);
+      color: #fff;
+      text-align: center;
+      padding: 20px 16px 18px;
+      position: relative;
+    }
+    .site-header .logo { font-size: 26px; font-weight: 900; letter-spacing: 5px; margin-bottom: 2px; }
+    .site-header .tagline { font-size: 12px; opacity: .7; letter-spacing: 2px; }
+    .lang-toggle {
+      position: absolute;
+      top: 14px; right: 14px;
+      background: rgba(255,255,255,.18);
+      border: 1.5px solid rgba(255,255,255,.45);
+      color: #fff;
+      border-radius: 20px;
+      padding: 5px 13px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: .5px;
+      transition: background .2s;
+    }
+    .lang-toggle:hover { background: rgba(255,255,255,.28); }
+
+    /* Flow bar */
+    .flow-bar {
+      background: #fff;
+      border-bottom: 1px solid #e0e8e4;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      overflow-x: auto;
+    }
+    .flow-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #aaa; white-space: nowrap;
+    }
+    .flow-item.active { color: var(--green); font-weight: 700; }
+    .flow-item.done { color: var(--green-mid); }
+    .flow-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #e8e8e8; color: #aaa;
+      font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .flow-item.active .flow-num { background: var(--green); color: #fff; }
+    .flow-item.done .flow-num { background: var(--green-mid); color: #fff; }
+    .flow-arrow { color: #ddd; margin: 0 8px; font-size: 14px; }
+
+    .page { max-width: 520px; margin: 0 auto; padding: 0 14px; }
+
+    /* Info banner */
+    .store-info {
+      background: var(--green-light); color: var(--text);
+      border-radius: 12px; padding: 14px 16px;
+      margin: 16px 0 14px;
+      font-size: 12.5px; line-height: 1.9;
+      border: 1.5px solid var(--border);
+    }
+    .store-info strong { color: var(--green-dark); }
+    .store-info a { color: var(--green-dark); text-decoration: underline; }
+    .store-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+    .store-row:last-of-type { margin-bottom: 0; }
+    .store-icon { font-size: 18px; line-height: 1.4; flex-shrink: 0; }
+    .store-label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .5px; margin-bottom: 2px; }
+    .store-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .store-info .warn {
+      background: #fff; border-radius: 8px;
+      padding: 8px 12px; margin-top: 12px;
+      font-size: 12px; color: #8a7060; border: 1px solid var(--border);
+    }
+
+    /* Card */
+    .card {
+      background: #fff; border-radius: 14px;
+      padding: 20px 18px; margin-bottom: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    }
+    .card-title {
+      font-size: 14px; font-weight: 700; color: var(--green-dark);
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 1.5px solid var(--green-light);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Visit type cards */
+    .visit-grid { display: flex; flex-direction: column; gap: 10px; }
+    .visit-card {
+      border: 2px solid var(--border); border-radius: 12px;
+      padding: 16px 18px; cursor: pointer;
+      background: #fafcfb; transition: all .18s;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .visit-card:hover { border-color: var(--green-mid); background: var(--green-light); }
+    .visit-card.selected { border-color: var(--green); background: var(--green-light); }
+    .visit-card-icon { font-size: 28px; line-height: 1.1; flex-shrink: 0; }
+    .visit-card-label { font-size: 15px; font-weight: 700; color: var(--green-dark); margin-bottom: 3px; }
+    .visit-card-desc { font-size: 12.5px; color: #5a7a6a; line-height: 1.6; }
+
+    /* Form */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #3a5a4a; margin-bottom: 6px; }
+    .required { color: #e05050; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+    input[type=text], input[type=tel], input[type=date], textarea {
+      width: 100%; padding: 10px 13px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-size: 14px; color: var(--text); background: #fafcfb;
+      outline: none; font-family: inherit; transition: border-color .2s;
+    }
+    input:focus, textarea:focus { border-color: var(--green-mid); background: #fff; }
+    input.err, textarea.err { border-color: #e05050 !important; }
+
+    /* Slot picker */
+    .slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+    .slot-btn {
+      padding: 9px 4px; border: 1.5px solid var(--border); border-radius: 9px;
+      background: #fafcfb; font-size: 12px; font-weight: 600;
+      color: #3a5a4a; cursor: pointer; text-align: center;
+      transition: all .15s; line-height: 1.4;
+    }
+    .slot-btn:hover:not(.unavail) { border-color: var(--green-mid); background: var(--green-light); }
+    .slot-btn.chosen { border-color: var(--green); background: var(--green); color: #fff; }
+    .slot-btn.unavail { opacity: .45; cursor: not-allowed; background: #f0f0f0; color: #aaa; border-color: #e0e0e0; }
+    .slot-sub { font-size: 10px; font-weight: 400; margin-top: 1px; }
+
+    /* Chips */
+    .chip-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip {
+      padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 20px;
+      font-size: 13px; cursor: pointer;
+      background: #fafcfb; color: #3a5a4a;
+      transition: all .15s; user-select: none;
+    }
+    .chip:hover { border-color: var(--green-mid); background: var(--green-light); }
+    .chip.on { border-color: var(--green); background: var(--green); color: #fff; }
+
+    /* Radio */
+    .radio-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .radio-btn {
+      padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 20px;
+      font-size: 13px; cursor: pointer;
+      background: #fafcfb; color: #3a5a4a;
+      transition: all .15s; user-select: none;
+    }
+    .radio-btn:hover { border-color: var(--green-mid); }
+    .radio-btn.on { border-color: var(--green); background: var(--green); color: #fff; }
+
+    /* TG upload */
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 20px; text-align: center; cursor: pointer;
+      background: #fafcfb; transition: all .2s; position: relative;
+    }
+    .upload-area:hover { border-color: var(--green-mid); background: var(--green-light); }
+    .upload-area input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      width: 100%; height: 100%; border: none;
+    }
+    .upload-icon { font-size: 28px; margin-bottom: 6px; }
+    .upload-text { font-size: 13px; color: #5a7a6a; }
+    .upload-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .upload-preview { margin-top: 10px; border-radius: 10px; overflow: hidden; display: none; }
+    .upload-preview img { width: 100%; max-height: 200px; object-fit: contain; background: #f0f4f2; }
+
+    /* Summary */
+    .summary-box {
+      background: var(--green-light); border-radius: 10px;
+      padding: 13px 14px; margin-bottom: 14px;
+      font-size: 13px; color: var(--green-dark); line-height: 1.9;
+      border-left: 3px solid var(--green-mid);
+    }
+
+    /* Buttons */
+    .btn-main {
+      width: 100%; padding: 13px;
+      background: var(--green); color: #fff;
+      border: none; border-radius: 12px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: background .2s;
+    }
+    .btn-main:hover { background: var(--green-dark); }
+    .btn-main:disabled { background: #bbb; cursor: not-allowed; }
+    .btn-back {
+      width: 100%; padding: 11px;
+      background: #e8eeeb; color: #3a5a4a;
+      border: none; border-radius: 12px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      font-family: inherit;
+    }
+
+    .err-msg { color: #e05050; font-size: 12px; margin-bottom: 8px; }
+    .loading { text-align: center; padding: 14px; color: var(--muted); font-size: 13px; grid-column: 1/-1; }
+    .section-sep { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 9px; }
+    .notice-box {
+      background: #fff8e1; border-radius: 10px;
+      padding: 12px 14px; font-size: 12.5px;
+      color: #7a5a00; line-height: 1.8; margin-bottom: 14px;
+    }
+
+    /* Success */
+    .success-wrap { text-align: center; padding: 28px 16px 16px; }
+    .success-icon { font-size: 52px; margin-bottom: 14px; }
+    .success-wrap h2 { font-size: 19px; font-weight: 800; color: var(--green-dark); margin-bottom: 8px; }
+    .success-wrap p { font-size: 13px; color: #5a7a6a; line-height: 1.9; }
+    .detail-box {
+      background: var(--green-light); border-radius: 10px;
+      padding: 14px 16px; margin: 14px 0;
+      font-size: 13px; text-align: left; line-height: 2; color: var(--green-dark);
+    }
+    .next-box {
+      background: #fff8e1; border-radius: 10px;
+      padding: 14px 16px; font-size: 13px;
+      color: #7a5a00; line-height: 1.9; text-align: left;
+    }
+    .note-tip {
+      background: #fff3e0; border-radius: 8px;
+      padding: 9px 12px; font-size: 11.5px;
+      color: #b05800; margin-top: 8px; line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+
+<div class="site-header">
+  <button class="lang-toggle" id="lang-btn" onclick="toggleLang()">EN</button>
+  <div class="logo">STORY ACCESSORY</div>
+  <div class="tagline" id="tagline">故事銀飾 · 體驗店申請表單</div>
+</div>
+
+<div class="flow-bar" id="flow-bar"></div>
+
+<div class="page">
+
+  <!-- Store info -->
+  <div class="store-info" id="store-info-block">
+    <!-- filled by renderStoreInfo() -->
+  </div>
+
+  <!-- ─── STEP 0：來訪目的 ─── -->
+  <div id="step0">
+    <div class="card">
+      <div class="card-title" id="s0-title">請選擇您的來訪目的</div>
+      <div class="visit-grid">
+        <div class="visit-card" id="vc-booking" onclick="selectVisitType('booking')">
+          <div class="visit-card-icon">🗓️</div>
+          <div>
+            <div class="visit-card-label" id="vt-booking-label">預約體驗鑑賞</div>
+            <div class="visit-card-desc" id="vt-booking-desc">選擇時段，提前告知想看的款式，我們為您預先準備</div>
+          </div>
+        </div>
+        <div class="visit-card" id="vc-pickup" onclick="selectVisitType('pickup')">
+          <div class="visit-card-icon">📦</div>
+          <div>
+            <div class="visit-card-label" id="vt-pickup-label">官網下單門市取貨</div>
+            <div class="visit-card-desc" id="vt-pickup-desc">已在官網完成訂購，填寫訂單編號安排到店取件</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── STEP 1：時段 ─── -->
+  <div id="step1" style="display:none">
+    <div class="card">
+      <div class="card-title" id="s1-title">🗓️ 選擇希望預約的日期與時段</div>
+      <div class="form-group">
+        <label id="s1-date-label">希望預約日期 <span class="required">*</span></label>
+        <input type="date" id="pick-date">
+        <div class="hint" id="s1-date-hint">僅開放週一至週五，國定假日除外</div>
+      </div>
+      <div id="slot-section" style="display:none">
+        <div class="section-sep" id="s1-slots-label">可選時段</div>
+        <div class="slot-grid" id="slot-grid"></div>
+      </div>
+      <div id="s1-next" style="display:none;margin-top:16px">
+        <button class="btn-main" id="s1-next-btn" onclick="goStep('step2')">下一步：填寫商品需求 →</button>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <button class="btn-back" id="s1-back" onclick="goStep('step0')">← 重新選擇來訪目的</button>
+    </div>
+  </div>
+
+  <!-- ─── STEP P：訂單確認 ─── -->
+  <div id="stepP" style="display:none">
+    <div class="card">
+      <div class="card-title" id="sP-title">📦 確認您的訂單</div>
+      <div class="form-group">
+        <label id="sP-tg-label">TG 訂單編號 <span class="required">*</span></label>
+        <input type="text" id="tg-order" oninput="normalizeTG(this)">
+        <div class="hint" id="sP-tg-hint">訂單編號為 TG 開頭，可在訂購確認信或截圖中找到</div>
+      </div>
+      <div style="margin:4px 0 14px">
+        <div class="section-sep" id="sP-upload-title">或上傳訂單截圖（自動擷取編號）</div>
+        <div class="upload-area">
+          <input type="file" id="order-img" accept="image/*" onchange="previewOrderImg(this)">
+          <div class="upload-icon">📸</div>
+          <div class="upload-text" id="sP-upload-text">點擊上傳訂單截圖</div>
+          <div class="upload-sub" id="sP-upload-sub">系統將自動辨識 TG 訂單編號</div>
+        </div>
+        <div class="upload-preview" id="order-preview">
+          <img id="order-preview-img" src="" alt="">
+        </div>
+        <div id="tg-extract-msg" style="font-size:12px;color:var(--green-dark);margin-top:6px;display:none"></div>
+      </div>
+    </div>
+    <div id="sP-err" class="err-msg"></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:12px">
+      <button class="btn-back" id="sP-back" onclick="goStep('step0')">← 返回</button>
+      <button class="btn-main" id="sP-next" onclick="goStep('step3P')">下一步：填寫聯絡資料 →</button>
+    </div>
+  </div>
+
+  <!-- ─── STEP 2：商品需求 ─── -->
+  <div id="step2" style="display:none">
+    <div class="summary-box" id="summary-slot"></div>
+    <div class="notice-box" id="s2-notice">
+      💡 <strong id="s2-notice-title">請告知我們您想看的商品</strong><br>
+      <span id="s2-notice-body">因商品眾多，陳列有限，不一定所有款式都在現場。<br>提前填寫您感興趣的角色與類型，我們將預先為您準備，讓體驗更順暢！</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title" id="s2-char-title">✨ 感興趣的角色 / 系列 <span class="required">*</span></div>
+      <div class="hint" id="s2-char-multi" style="margin-bottom:10px">可複選</div>
+      <div class="chip-grid" id="char-chips"></div>
+      <div class="form-group" style="margin-top:14px">
+        <label id="s2-char-other-label">其他角色或系列（可補充）</label>
+        <input type="text" id="char-other">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" id="s2-type-title">想看的商品類型 <span class="required">*</span></div>
+      <div class="hint" id="s2-type-multi" style="margin-bottom:10px">可複選</div>
+      <div class="chip-grid" id="type-chips"></div>
+      <div style="margin-top:16px">
+        <div class="section-sep" id="s2-stone-label">石材偏好</div>
+        <div class="radio-row" id="stone-radios"></div>
+      </div>
+      <div id="ring-size-wrap" style="display:none;margin-top:14px">
+        <div class="form-group">
+          <label id="s2-ring-label">戒圍尺寸（若有興趣戒指，請填入）</label>
+          <input type="text" id="ring-size">
+          <div class="hint" id="s2-ring-hint">現場也可測量，填寫有助我們提前準備</div>
+        </div>
+      </div>
+    </div>
+
+    <span id="s2-note-title" style="display:none"></span>
+    <span id="s2-note-hint" style="display:none"></span>
+    <textarea id="prod-note" style="display:none"></textarea>
+    <div id="s2-err" class="err-msg"></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:12px">
+      <button class="btn-back" id="s2-back" onclick="goStep('step1')">← 返回</button>
+      <button class="btn-main" id="s2-next" onclick="goStep('step3')">下一步：填聯絡資料 →</button>
+    </div>
+  </div>
+
+  <!-- ─── STEP 3：聯絡資料（體驗預約） ─── -->
+  <div id="step3" style="display:none">
+    <div class="summary-box" id="summary-all"></div>
+    <div class="card">
+      <div class="card-title" id="s3-title">👤 您的聯絡資料</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label id="s3-name-label">姓名 <span class="required">*</span></label>
+          <input type="text" id="cust-name">
+        </div>
+        <div class="form-group">
+          <label id="s3-phone-label">電話 <span class="required">*</span></label>
+          <input type="tel" id="cust-phone">
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="s3-attendees-label">鑑賞人數</label>
+        <div class="radio-row" id="attendees-radios"></div>
+        <div style="font-size:11.5px;color:#7aaa94;margin-top:6px">因為體驗空間有限，單次預約最多容納 4 個人</div>
+      </div>
+      <div class="form-group">
+        <label id="s3-purpose-label">體驗目的（選填）</label>
+        <div class="radio-row" id="purpose-radios"></div>
+      </div>
+      <div class="form-group">
+        <label id="s3-notes-label">其他備注（選填）</label>
+        <input type="text" id="cust-notes">
+      </div>
+      <div class="note-tip" id="s3-tip">
+        📌 填寫送出後，客服會透過 FB / IG 私訊確認預約，請確保帳號的私訊功能開啟。
+      </div>
+    </div>
+    <div id="s3-err" class="err-msg"></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:12px">
+      <button class="btn-back" id="s3-back" onclick="goStep('step2')">← 返回</button>
+      <button class="btn-main" id="submit-btn" onclick="submitBooking()">送出預約申請 ✓</button>
+    </div>
+    <div class="hint" id="s3-consent" style="text-align:center;margin-bottom:20px">
+      送出即代表您同意客服人員透過 FB / IG 與您聯繫以確認預約
+    </div>
+  </div>
+
+  <!-- ─── STEP 3P：聯絡資料（門市取貨） ─── -->
+  <div id="step3P" style="display:none">
+    <div class="summary-box" id="summary-pickup"></div>
+    <div class="card">
+      <div class="card-title" id="s3P-contact-title">👤 您的聯絡資料</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label id="s3P-name-label">姓名 <span class="required">*</span></label>
+          <input type="text" id="pickup-name">
+        </div>
+        <div class="form-group">
+          <label id="s3P-phone-label">電話 <span class="required">*</span></label>
+          <input type="tel" id="pickup-phone">
+        </div>
+      </div>
+      <div class="form-group">
+        <label id="s3P-notes-label">備注（選填）</label>
+        <input type="text" id="pickup-notes">
+      </div>
+      <div class="note-tip" id="s3P-tip">
+        📌 送出後，客服將透過 FB / IG 私訊確認取貨細節，請留意訊息通知。
+      </div>
+    </div>
+    <div id="s3P-err" class="err-msg"></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:12px">
+      <button class="btn-back" id="s3P-back" onclick="goStep('stepP')">← 返回</button>
+      <button class="btn-main" id="submit-pickup-btn" onclick="submitPickup()">送出取貨申請 ✓</button>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+/* ── Supabase ── */
+const SUPABASE_URL = 'https://favfqdebeyicbzymfpxa.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhdmZxZGViZXlpY2J6eW1mcHhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4MzUwODksImV4cCI6MjA5MjQxMTA4OX0.BzRQnSp24lRW-hNiw4psGe-YsXrolMFVQ7eMc2BC--s';
+let db;
+try { db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) { db = null; }
+
+/* ── Language ── */
+let lang = 'zh';
+
+const STRINGS = {
+  zh: {
+    tagline: '故事銀飾 · 體驗店申請表單',
+    lang_btn: 'EN',
+    // Store info
+    store_addr_label: '體驗地址',
+    store_addr: '台北市中山北路二段102號 10 樓',
+    store_addr_sub: '捷運民權西路步行約 5 分鐘',
+    store_hours_label: '體驗時間',
+    store_hours: '週一至週五&emsp;13:00 ～ 19:00&emsp;每次 <strong>30 分鐘</strong>',
+    store_hours_sub: '國定假日休',
+    store_payment_label: '付款方式',
+    store_payment: '現金、LINEPAY、信用卡均可',
+    store_warn: '⚠️ 填寫申請後，客服會透過 <strong>FB / IG 私訊</strong>與您確認，請留意訊息通知。',
+    // Flow
+    flow_purpose: '來訪目的', flow_slot: '時段選擇',
+    flow_product: '商品需求', flow_contact: '聯絡資料', flow_order: '訂單確認',
+    // Step 0
+    s0_title: '請選擇您的來訪目的',
+    vt_booking_label: '預約體驗鑑賞',
+    vt_booking_desc: '選擇時段，提前告知想看的款式，我們為您預先準備',
+    vt_pickup_label: '官網下單門市取貨',
+    vt_pickup_desc: '已在官網完成訂購，填寫訂單編號安排到店取件',
+    // Step 1
+    s1_title: '🗓️ 選擇希望預約的日期與時段',
+    s1_date_label: '希望預約日期',
+    s1_date_hint: '僅開放週一至週五，國定假日除外',
+    s1_slots_label: '可選時段',
+    s1_next_btn: '下一步：填寫商品需求 →',
+    s1_back: '← 重新選擇來訪目的',
+    // Step P
+    sP_title: '📦 確認您的訂單',
+    sP_tg_label: 'TG 訂單編號',
+    sP_tg_hint: '訂單編號為 TG 開頭，可在訂購確認信或截圖中找到',
+    sP_upload_title: '或上傳訂單截圖（自動擷取編號）',
+    sP_upload_text: '點擊上傳訂單截圖',
+    sP_upload_sub: '系統將自動辨識 TG 訂單編號',
+    sP_next: '下一步：填寫聯絡資料 →',
+    sP_back: '← 返回',
+    sP_err: '請輸入 TG 開頭的訂單編號',
+    tg_extracted: '✓ 已從截圖名稱擷取訂單編號：',
+    tg_manual: '請在上方手動輸入訂單編號',
+    // Step 2
+    s2_notice_title: '請告知我們您想看的商品',
+    s2_notice_body: '因商品眾多，陳列有限，不一定所有款式都在現場。<br>提前填寫您感興趣的角色與類型，我們將預先為您準備，讓體驗更順暢！',
+    s2_char_title: '✨ 感興趣的角色 / 系列',
+    s2_char_multi: '可複選',
+    s2_char_other_label: '其他角色或系列（可補充）',
+    s2_char_other_ph: '例如：翻轉樂園系列、自訂款…',
+    s2_type_title: '想看的商品類型',
+    s2_type_multi: '可複選',
+    s2_stone_label: '石材偏好',
+    s2_ring_label: '戒圍尺寸（若有興趣戒指，請填入）',
+    s2_ring_ph: '例如：10 號、11.5 號、不確定',
+    s2_ring_hint: '現場也可測量，填寫有助我們提前準備',
+    s2_note_title: '📝 補充說明（選填）',
+    s2_note_hint: '想了解特定款式，歡迎直接<strong>私訊我們的 FB / IG</strong>，客服會協助確認是否有展示。',
+    s2_note_ph: '例如：想看粉色款／送禮用／兩人一起來想看對戒…',
+    s2_next: '下一步：填聯絡資料 →',
+    s2_back: '← 返回',
+    s2_err: '請至少選擇一個感興趣的角色，以及一種商品類型',
+    // Step 3
+    s3_title: '👤 您的聯絡資料',
+    s3_name_label: '姓名',
+    s3_name_ph: '您的姓名',
+    s3_phone_label: '電話',
+    s3_phone_ph: '09xx-xxx-xxx',
+    s3_attendees_label: '鑑賞人數',
+    s3_purpose_label: '體驗目的（選填）',
+    s3_notes_label: '其他備注（選填）',
+    s3_notes_ph: '例如：對某金屬過敏、有特殊需求…',
+    s3_tip: '📌 填寫送出後，客服會透過 FB / IG 私訊確認預約，請確保帳號的私訊功能開啟。',
+    s3_submit: '送出預約申請 ✓',
+    s3_back: '← 返回',
+    s3_consent: '送出即代表您同意客服人員透過 FB / IG 與您聯繫以確認預約',
+    s3_err: '請填寫姓名與電話',
+    // Step 3P
+    s3P_title: '👤 您的聯絡資料',
+    s3P_name_label: '姓名',
+    s3P_phone_label: '電話',
+    s3P_notes_label: '備注（選填）',
+    s3P_notes_ph: '例如：希望的取貨時間、其他問題…',
+    s3P_tip: '📌 送出後，客服將透過 FB / IG 私訊確認取貨細節，請留意訊息通知。',
+    s3P_submit: '送出取貨申請 ✓',
+    s3P_back: '← 返回',
+    s3P_err: '請填寫姓名與電話',
+    // Slots
+    slot_chosen: '✓ 已選',
+    slot_occupied: '已被預約',
+    slot_past: '已過',
+    slot_mon: '週一保留',
+    slot_loading: '載入中…',
+    slot_closed: '此日期不開放預約（僅週一至週五）',
+    // Data arrays (zh stored to DB)
+    stones: ['莫桑石', '一般款', '都可以 / 不確定'],
+    purposes: ['自己配戴', '送禮', '情侶對戒', '只是看看'],
+    attendees: ['1 人', '2 人', '3 人', '4 人'],
+    // Chars & types: which field to show
+    char_key: 'label',
+    type_key: 'label_zh',
+    // Summary labels
+    sum_date: '📅', sum_time: '⏰', sum_char: '✨', sum_stone: '🔹',
+    sum_size: '戒圍', sum_note: '📝', sum_order: '📦 訂單編號：',
+    // Submit
+    submit_fail: '送出失敗，請稍後再試或直接私訊我們。',
+    conflict_holiday: '此日期已設為公休，請重新選擇。',
+    conflict_slot: '此時段剛被預約，請重新選擇。',
+    // Success booking
+    success_booking_title: '申請已送出！',
+    success_booking_msg: '感謝您的預約申請，<br>客服將透過 <strong>FB / IG 私訊</strong> 與您確認，<br>請留意訊息通知。',
+    success_booking_next: '⏳ <strong>接下來的步驟</strong><br>客服會透過 FB 或 IG 私訊與您確認預約細節，<br>若 1 個工作天內未收到回覆，歡迎主動私訊我們的官方帳號。<br><br>📍 <a href="https://maps.google.com/?q=台北市中山北路二段102號10樓" target="_blank" style="color:var(--green-dark)">台北市中山北路二段102號 10 樓</a>（捷運民權西路步行約 5 分鐘）<br>💳 現金、LINEPAY、信用卡均可',
+    // Success pickup
+    success_pickup_title: '取貨申請已送出！',
+    success_pickup_msg: '感謝您的申請，<br>客服將透過 <strong>FB / IG 私訊</strong> 與您確認取貨時間，<br>請留意訊息通知。',
+    success_pickup_next: '📍 <a href="https://maps.google.com/?q=台北市中山北路二段102號10樓" target="_blank" style="color:var(--green-dark)">台北市中山北路二段102號 10 樓</a>（捷運民權西路步行約 5 分鐘）<br>⏰ 週一至週五　13:00 ～ 19:00',
+    // Detail labels
+    det_minutes: '分鐘', det_people: '人',
+    det_name: '👤', det_phone: '📞', det_guests: '👥',
+    det_date_label: '預約日期',
+    det_time_label: '預約時間',
+    det_name_label: '姓名',
+    det_phone_label: '電話',
+    det_guests_label: '人數',
+    det_req_label: '需求',
+    det_guests_unit: '人',
+    det_req_notice: '請將您想要鑑賞的商品，先私訊提供官網連結或是截圖給我們，我們提前為您準備商品',
+  },
+  en: {
+    tagline: 'STORY Silver · Experience Studio',
+    lang_btn: '中文',
+    // Store info
+    store_addr_label: 'Address',
+    store_addr: '10F, No. 102, Sec. 2, Zhongshan N. Rd., Taipei',
+    store_addr_sub: '~5 min walk from MRT Minquan W. Rd.',
+    store_hours_label: 'Hours',
+    store_hours: 'Mon – Fri&emsp;1:00 PM – 7:00 PM&emsp;<strong>30 min</strong> per session',
+    store_hours_sub: 'Closed on national holidays',
+    store_payment_label: 'Payment',
+    store_payment: 'Cash, LINE Pay, or Credit Card',
+    store_warn: '⚠️ After submitting, our team will confirm via <strong>FB / IG DM</strong>. Please make sure your DMs are open.',
+    // Flow
+    flow_purpose: 'Purpose', flow_slot: 'Time Slot',
+    flow_product: 'Preferences', flow_contact: 'Contact', flow_order: 'Order',
+    // Step 0
+    s0_title: 'What brings you in?',
+    vt_booking_label: 'Book an Experience',
+    vt_booking_desc: 'Pick a time slot and tell us what you\'d like to see — we\'ll prepare in advance',
+    vt_pickup_label: 'Pick Up Online Order',
+    vt_pickup_desc: 'Already ordered on our website? Submit your order number to arrange pickup',
+    // Step 1
+    s1_title: '🗓️ Choose your preferred date & time slot',
+    s1_date_label: 'Preferred Date',
+    s1_date_hint: 'Mon – Fri only, excluding national holidays',
+    s1_slots_label: 'Available Time Slots',
+    s1_next_btn: 'Next: Set Preferences →',
+    s1_back: '← Change visit purpose',
+    // Step P
+    sP_title: '📦 Confirm Your Order',
+    sP_tg_label: 'TG Order Number',
+    sP_tg_hint: 'Starts with TG — find it in your order confirmation or screenshot',
+    sP_upload_title: 'Or upload a screenshot (auto-detect)',
+    sP_upload_text: 'Tap to upload order screenshot',
+    sP_upload_sub: 'We\'ll try to detect your TG order number',
+    sP_next: 'Next: Contact Details →',
+    sP_back: '← Back',
+    sP_err: 'Please enter a TG order number',
+    tg_extracted: '✓ Order number detected: ',
+    tg_manual: 'Please enter your order number above',
+    // Step 2
+    s2_notice_title: 'Tell us what you\'d like to see',
+    s2_notice_body: 'We carry a wide range, and can\'t display everything at once.<br>Share your interests so we can have the right pieces ready for your visit!',
+    s2_char_title: '✨ Characters / Series of Interest',
+    s2_char_multi: 'Multiple selections allowed',
+    s2_char_other_label: 'Other characters or series (optional)',
+    s2_char_other_ph: 'e.g. custom design, limited edition…',
+    s2_type_title: 'Product Types You\'d Like to See',
+    s2_type_multi: 'Multiple selections allowed',
+    s2_stone_label: 'Stone Preference',
+    s2_ring_label: 'Ring Size (if interested in rings)',
+    s2_ring_ph: 'e.g. US 6, US 7, not sure',
+    s2_ring_hint: 'We can measure on-site — filling this in helps us prepare',
+    s2_note_title: '📝 Additional Notes (optional)',
+    s2_note_hint: 'For specific styles, feel free to <strong>DM us on FB / IG</strong> and we\'ll check availability.',
+    s2_note_ph: 'e.g. prefer pink tones / it\'s a gift / looking for couple rings…',
+    s2_next: 'Next: Contact Details →',
+    s2_back: '← Back',
+    s2_err: 'Please select at least one character and one product type',
+    // Step 3
+    s3_title: '👤 Your Contact Details',
+    s3_name_label: 'Name',
+    s3_name_ph: 'Your name',
+    s3_phone_label: 'Phone',
+    s3_phone_ph: '09xx-xxx-xxx',
+    s3_attendees_label: 'Number of Guests',
+    s3_purpose_label: 'Visit Purpose (optional)',
+    s3_notes_label: 'Additional Notes (optional)',
+    s3_notes_ph: 'e.g. metal allergy, special requests…',
+    s3_tip: '📌 After submitting, we\'ll confirm via FB / IG DM. Please make sure your DMs are open.',
+    s3_submit: 'Submit Booking ✓',
+    s3_back: '← Back',
+    s3_consent: 'By submitting, you agree to be contacted via FB / IG to confirm your booking.',
+    s3_err: 'Please fill in your name and phone number',
+    // Step 3P
+    s3P_title: '👤 Your Contact Details',
+    s3P_name_label: 'Name',
+    s3P_phone_label: 'Phone',
+    s3P_notes_label: 'Notes (optional)',
+    s3P_notes_ph: 'e.g. preferred pickup time, questions…',
+    s3P_tip: '📌 After submitting, we\'ll confirm pickup details via FB / IG DM.',
+    s3P_submit: 'Submit Pickup Request ✓',
+    s3P_back: '← Back',
+    s3P_err: 'Please fill in your name and phone number',
+    // Slots
+    slot_chosen: '✓ Selected',
+    slot_occupied: 'Booked',
+    slot_past: 'Past',
+    slot_mon: 'Mon Reserved',
+    slot_loading: 'Loading…',
+    slot_closed: 'Not available (Mon – Fri only)',
+    // Data arrays (display only — DB always stores zh)
+    stones: ['Moissanite', 'Standard', 'Either / Not sure'],
+    purposes: ['For myself', 'Gift', 'Couple rings', 'Just browsing'],
+    attendees: ['1 guest', '2 guests', '3 guests', '4 guests'],
+    char_key: 'en',
+    type_key: 'label_en',
+    sum_date: '📅', sum_time: '⏰', sum_char: '✨', sum_stone: '🔹',
+    sum_size: 'Size', sum_note: '📝', sum_order: '📦 Order #: ',
+    submit_fail: 'Submission failed. Please try again or DM us directly.',
+    conflict_holiday: 'This date is closed. Please choose another.',
+    conflict_slot: 'This slot was just booked. Please choose another.',
+    success_booking_title: 'Booking Submitted!',
+    success_booking_msg: 'Thank you for your request.<br>We\'ll confirm via <strong>FB / IG DM</strong>.<br>Please watch for our message.',
+    success_booking_next: '⏳ <strong>What\'s next</strong><br>We\'ll DM you on FB or IG to confirm the details.<br>If you don\'t hear from us within 1 business day, feel free to DM us directly.<br><br>📍 <a href="https://maps.google.com/?q=台北市中山北路二段102號10樓" target="_blank" style="color:var(--green-dark)">10F, No. 102, Sec. 2, Zhongshan N. Rd., Taipei</a><br>💳 Cash, LINE Pay, or Credit Card',
+    success_pickup_title: 'Pickup Request Submitted!',
+    success_pickup_msg: 'Thank you! We\'ll confirm pickup details via <strong>FB / IG DM</strong>.',
+    success_pickup_next: '📍 <a href="https://maps.google.com/?q=台北市中山北路二段102號10樓" target="_blank" style="color:var(--green-dark)">10F, No. 102, Sec. 2, Zhongshan N. Rd., Taipei</a><br>⏰ Mon – Fri　1:00 PM – 7:00 PM',
+    det_minutes: 'min', det_people: '',
+    det_name: '👤', det_phone: '📞', det_guests: '👥',
+    det_date_label: 'Date',
+    det_time_label: 'Time',
+    det_name_label: 'Name',
+    det_phone_label: 'Phone',
+    det_guests_label: 'Guests',
+    det_req_label: 'Request',
+    det_guests_unit: 'guest(s)',
+    det_req_notice: 'Please share product links or screenshots with our customer service team before your visit',
+  }
+};
+
+function t(k) { return STRINGS[lang][k] || STRINGS.zh[k] || k; }
+
+/* ── Constants ── */
+const SLOTS = ['13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30'];
+
+const CHARACTERS = [
+  { id:'kuromi',      label:'酷洛米',     en:'Kuromi' },
+  { id:'melody',      label:'美樂蒂',     en:'My Melody' },
+  { id:'kitty',       label:'凱蒂貓',     en:'Hello Kitty' },
+  { id:'twins',       label:'雙星仙子',   en:'Little Twin Stars' },
+  { id:'cinnamoroll', label:'大耳狗喜拿', en:'Cinnamoroll' },
+  { id:'hangyodon',   label:'人魚漢頓',   en:'Hangyodon' },
+  { id:'pochacco',    label:'帕恰狗',     en:'Pochacco' },
+  { id:'pompom',      label:'布丁狗',     en:'Pom Pom Purin' },
+  { id:'gudetama',    label:'蛋黃哥',     en:'Gudetama' },
+];
+const TYPES = [
+  { id:'necklace', label_zh:'項鍊', label_en:'Necklace' },
+  { id:'bracelet', label_zh:'手鍊', label_en:'Bracelet' },
+  { id:'earring',  label_zh:'耳環', label_en:'Earrings' },
+  { id:'ring',     label_zh:'戒指', label_en:'Ring' },
+];
+
+/* ── State ── */
+let visitType = '';
+let selectedDate = '', selectedSlot = '', bookedSlots = [];
+let selChars = new Set(), selTypes = new Set();
+let selStoneIdx = -1, selPurposeIdx = -1, selAttendeesIdx = 0;
+
+/* ── Helpers ── */
+const STONES_ZH  = ['莫桑石', '一般款', '都可以 / 不確定'];
+const PURPOSES_ZH = ['自己配戴', '送禮', '情侶對戒', '只是看看'];
+const ATTENDEES_ZH = ['1 人', '2 人', '3 人', '4 人'];
+const slotEnd = s => { const[h,m]=s.split(':').map(Number);const em=m+30;return `${h+Math.floor(em/60)}:${(em%60).toString().padStart(2,'0')}`; };
+const sisterSlot = s => { const[h,m]=s.split(':').map(Number);return m===0?`${h}:30`:`${h}:00`; };
+const DAY_ZH = ['日','一','二','三','四','五','六'];
+const DAY_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const fmtDate = d => {
+  const dt = new Date(d+'T00:00:00');
+  if (lang === 'en') return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()]} ${dt.getDate()} (${DAY_EN[dt.getDay()]})`;
+  return `${dt.getMonth()+1}月${dt.getDate()}日（週${DAY_ZH[dt.getDay()]}）`;
+};
+
+/* ── All steps ── */
+const ALL_STEPS = ['step0','step1','step2','step3','stepP','step3P'];
+function showOnly(id) {
+  ALL_STEPS.forEach(s => { const el=document.getElementById(s); if(el) el.style.display = s===id?'block':'none'; });
+}
+
+/* ── Flow bar ── */
+function renderFlowBar(steps, activeIdx) {
+  let html = '';
+  steps.forEach((s, i) => {
+    const cls = i < activeIdx ? 'flow-item done' : i === activeIdx ? 'flow-item active' : 'flow-item';
+    html += `<div class="${cls}"><div class="flow-num">${i+1}</div>${s}</div>`;
+    if (i < steps.length-1) html += '<div class="flow-arrow">›</div>';
+  });
+  document.getElementById('flow-bar').innerHTML = html;
+}
+
+/* ── Store info ── */
+function renderStoreInfo() {
+  const s = STRINGS[lang];
+  document.getElementById('store-info-block').innerHTML = `
+    <div class="store-row">
+      <span class="store-icon">📍</span>
+      <div>
+        <div class="store-label">${s.store_addr_label}</div>
+        <div><a href="https://maps.google.com/?q=台北市中山北路二段102號10樓" target="_blank"><strong>${s.store_addr}</strong></a></div>
+        <div class="store-sub">${s.store_addr_sub}</div>
+      </div>
+    </div>
+    <div class="store-row">
+      <span class="store-icon">⏰</span>
+      <div>
+        <div class="store-label">${s.store_hours_label}</div>
+        <div>${s.store_hours}</div>
+        <div class="store-sub">${s.store_hours_sub}</div>
+      </div>
+    </div>
+    <div class="store-row">
+      <span class="store-icon">💳</span>
+      <div>
+        <div class="store-label">${s.store_payment_label}</div>
+        <div>${s.store_payment}</div>
+      </div>
+    </div>
+    <div class="warn">${s.store_warn}</div>`;
+}
+
+/* ── Apply language to all static text ── */
+function applyLang() {
+  const s = STRINGS[lang];
+  document.getElementById('tagline').textContent = s.tagline;
+  document.getElementById('lang-btn').textContent = s.lang_btn;
+  // Step 0
+  document.getElementById('s0-title').textContent = s.s0_title;
+  document.getElementById('vt-booking-label').textContent = s.vt_booking_label;
+  document.getElementById('vt-booking-desc').textContent = s.vt_booking_desc;
+  document.getElementById('vt-pickup-label').textContent = s.vt_pickup_label;
+  document.getElementById('vt-pickup-desc').textContent = s.vt_pickup_desc;
+  // Step 1
+  document.getElementById('s1-title').textContent = s.s1_title;
+  document.getElementById('s1-date-label').innerHTML = s.s1_date_label + ' <span class="required">*</span>';
+  document.getElementById('s1-date-hint').textContent = s.s1_date_hint;
+  document.getElementById('s1-slots-label').textContent = s.s1_slots_label;
+  document.getElementById('s1-next-btn').textContent = s.s1_next_btn;
+  document.getElementById('s1-back').textContent = s.s1_back;
+  // Step P
+  document.getElementById('sP-title').textContent = s.sP_title;
+  document.getElementById('sP-tg-label').innerHTML = s.sP_tg_label + ' <span class="required">*</span>';
+  document.getElementById('tg-order').placeholder = lang==='en' ? 'e.g. TG2025001234' : '例如：TG2025001234';
+  document.getElementById('sP-tg-hint').textContent = s.sP_tg_hint;
+  document.getElementById('sP-upload-title').textContent = s.sP_upload_title;
+  document.getElementById('sP-upload-text').textContent = s.sP_upload_text;
+  document.getElementById('sP-upload-sub').textContent = s.sP_upload_sub;
+  document.getElementById('sP-next').textContent = s.sP_next;
+  document.getElementById('sP-back').textContent = s.sP_back;
+  // Step 2
+  document.getElementById('s2-notice-title').textContent = s.s2_notice_title;
+  document.getElementById('s2-notice-body').innerHTML = s.s2_notice_body;
+  document.getElementById('s2-char-title').innerHTML = s.s2_char_title + ' <span class="required">*</span>';
+  document.getElementById('s2-char-multi').textContent = s.s2_char_multi;
+  document.getElementById('s2-char-other-label').textContent = s.s2_char_other_label;
+  document.getElementById('char-other').placeholder = s.s2_char_other_ph;
+  document.getElementById('s2-type-title').innerHTML = s.s2_type_title + ' <span class="required">*</span>';
+  document.getElementById('s2-type-multi').textContent = s.s2_type_multi;
+  document.getElementById('s2-stone-label').textContent = s.s2_stone_label;
+  document.getElementById('s2-ring-label').textContent = s.s2_ring_label;
+  document.getElementById('ring-size').placeholder = s.s2_ring_ph;
+  document.getElementById('s2-ring-hint').textContent = s.s2_ring_hint;
+  document.getElementById('s2-note-title').textContent = s.s2_note_title;
+  document.getElementById('s2-note-hint').innerHTML = s.s2_note_hint;
+  document.getElementById('prod-note').placeholder = s.s2_note_ph;
+  document.getElementById('s2-next').textContent = s.s2_next;
+  document.getElementById('s2-back').textContent = s.s2_back;
+  // Step 3
+  document.getElementById('s3-title').textContent = s.s3_title;
+  document.getElementById('s3-name-label').innerHTML = s.s3_name_label + ' <span class="required">*</span>';
+  document.getElementById('cust-name').placeholder = s.s3_name_ph;
+  document.getElementById('s3-phone-label').innerHTML = s.s3_phone_label + ' <span class="required">*</span>';
+  document.getElementById('cust-phone').placeholder = s.s3_phone_ph;
+  document.getElementById('s3-attendees-label').textContent = s.s3_attendees_label;
+  document.getElementById('s3-purpose-label').textContent = s.s3_purpose_label;
+  document.getElementById('s3-notes-label').textContent = s.s3_notes_label;
+  document.getElementById('cust-notes').placeholder = s.s3_notes_ph;
+  document.getElementById('s3-tip').textContent = s.s3_tip;
+  document.getElementById('submit-btn').textContent = s.s3_submit;
+  document.getElementById('s3-back').textContent = s.s3_back;
+  document.getElementById('s3-consent').textContent = s.s3_consent;
+  // Step 3P
+  document.getElementById('s3P-contact-title').textContent = s.s3P_title;
+  document.getElementById('s3P-name-label').innerHTML = s.s3P_name_label + ' <span class="required">*</span>';
+  document.getElementById('pickup-name').placeholder = s.s3_name_ph;
+  document.getElementById('s3P-phone-label').innerHTML = s.s3P_phone_label + ' <span class="required">*</span>';
+  document.getElementById('pickup-phone').placeholder = s.s3_phone_ph;
+  document.getElementById('s3P-notes-label').textContent = s.s3P_notes_label;
+  document.getElementById('pickup-notes').placeholder = s.s3P_notes_ph;
+  document.getElementById('s3P-tip').textContent = s.s3P_tip;
+  document.getElementById('submit-pickup-btn').textContent = s.s3P_submit;
+  document.getElementById('s3P-back').textContent = s.s3P_back;
+
+  // Re-render store info and dynamic arrays
+  renderStoreInfo();
+  renderCharChips();
+  renderTypeChips();
+  renderStoneRadios();
+  renderAttendeeRadios();
+  renderPurposeRadios();
+
+  // Re-render slots if visible
+  if (selectedDate && document.getElementById('slot-section').style.display !== 'none') {
+    renderSlots();
+  }
+}
+
+/* ── Dynamic chip / radio renderers ── */
+function renderCharChips() {
+  const key = t('char_key');
+  document.getElementById('char-chips').innerHTML = CHARACTERS.map(c =>
+    `<div class="chip${selChars.has(c.id)?' on':''}" onclick="toggleChip('char','${c.id}',this)">${c[key]}</div>`
+  ).join('');
+}
+function renderTypeChips() {
+  const key = t('type_key');
+  document.getElementById('type-chips').innerHTML = TYPES.map(tp =>
+    `<div class="chip${selTypes.has(tp.id)?' on':''}" onclick="toggleChip('type','${tp.id}',this)">${tp[key]}</div>`
+  ).join('');
+}
+function renderStoneRadios() {
+  document.getElementById('stone-radios').innerHTML = t('stones').map((s,i) =>
+    `<div class="radio-btn${selStoneIdx===i?' on':''}" onclick="pickRadio('stone',${i},this)">${s}</div>`
+  ).join('');
+}
+function renderAttendeeRadios() {
+  document.getElementById('attendees-radios').innerHTML = t('attendees').map((a,i) =>
+    `<div class="radio-btn${selAttendeesIdx===i?' on':''}" onclick="pickRadio('attendees',${i},this)">${a}</div>`
+  ).join('');
+}
+function renderPurposeRadios() {
+  document.getElementById('purpose-radios').innerHTML = t('purposes').map((p,i) =>
+    `<div class="radio-btn${selPurposeIdx===i?' on':''}" onclick="pickRadio('purpose',${i},this)">${p}</div>`
+  ).join('');
+}
+
+/* ── Language toggle ── */
+function toggleLang() {
+  lang = lang === 'zh' ? 'en' : 'zh';
+  document.documentElement.lang = lang === 'zh' ? 'zh-TW' : 'en';
+  applyLang();
+  // Re-render flow bar if on a step
+  if (visitType === 'booking') {
+    const visible = ALL_STEPS.find(s => document.getElementById(s).style.display !== 'none');
+    if (visible === 'step1') renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 1);
+    else if (visible === 'step2') renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 2);
+    else if (visible === 'step3') renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 3);
+  } else if (visitType === 'pickup') {
+    const visible = ALL_STEPS.find(s => document.getElementById(s).style.display !== 'none');
+    if (visible === 'stepP') renderFlowBar([t('flow_purpose'),t('flow_order'),t('flow_contact')], 1);
+    else if (visible === 'step3P') renderFlowBar([t('flow_purpose'),t('flow_order'),t('flow_contact')], 2);
+  } else {
+    renderFlowBar([t('flow_purpose')], 0);
+  }
+}
+
+/* ── Visit type ── */
+function selectVisitType(type) {
+  visitType = type;
+  ['booking','pickup'].forEach(tp => {
+    const vc = document.getElementById('vc-'+tp);
+    if (vc) vc.classList.toggle('selected', tp === type);
+  });
+  if (type === 'booking') {
+    renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 1);
+    showOnly('step1');
+  } else {
+    renderFlowBar([t('flow_purpose'),t('flow_order'),t('flow_contact')], 1);
+    showOnly('stepP');
+  }
+  window.scrollTo(0,0);
+}
+
+/* ── Step navigation ── */
+function goStep(target) {
+  if (target === 'step2') {
+    if (!selectedDate || !selectedSlot) { alert(lang==='en'?'Please select a date and time slot':'請先選擇日期和時段'); return; }
+    document.getElementById('summary-slot').innerHTML =
+      `${t('sum_date')} ${fmtDate(selectedDate)}&emsp;${t('sum_time')} ${selectedSlot} ～ ${slotEnd(selectedSlot)}`;
+    renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 2);
+    showOnly('step2');
+
+  } else if (target === 'step3') {
+    const hasChar = selChars.size > 0 || document.getElementById('char-other').value.trim();
+    const hasType = selTypes.size > 0;
+    document.getElementById('s2-err').textContent = '';
+    if (!hasChar || !hasType) { document.getElementById('s2-err').textContent = t('s2_err'); return; }
+    // Build summary
+    const chars = [...selChars].map(id => { const c=CHARACTERS.find(x=>x.id===id); return c?c[t('char_key')]:null; }).filter(Boolean);
+    const otherChar = document.getElementById('char-other').value.trim();
+    if (otherChar) chars.push(otherChar);
+    const types = [...selTypes].map(id => { const tp=TYPES.find(x=>x.id===id); return tp?tp[t('type_key')]:null; }).filter(Boolean);
+    const ringSz = document.getElementById('ring-size').value.trim();
+    const note = document.getElementById('prod-note').value.trim();
+    document.getElementById('summary-all').innerHTML =
+      `${t('sum_date')} ${fmtDate(selectedDate)}&emsp;${t('sum_time')} ${selectedSlot} ～ ${slotEnd(selectedSlot)}<br>` +
+      `${t('sum_char')} ${chars.join('、') || '—'}&emsp;${types.join('、') || '—'}` +
+      `${selStoneIdx>=0 ? `&emsp;${t('sum_stone')} ${t('stones')[selStoneIdx]}` : ''}` +
+      `${ringSz ? `&emsp;${t('sum_size')} ${ringSz}` : ''}` +
+      `${note ? `<br>${t('sum_note')} ${note}` : ''}`;
+    renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 3);
+    showOnly('step3');
+
+  } else if (target === 'step3P') {
+    const tg = document.getElementById('tg-order').value.trim();
+    document.getElementById('sP-err').textContent = '';
+    if (!tg || !tg.toUpperCase().startsWith('TG')) { document.getElementById('sP-err').textContent = t('sP_err'); return; }
+    document.getElementById('summary-pickup').innerHTML = `${t('sum_order')}<strong>${tg.toUpperCase()}</strong>`;
+    renderFlowBar([t('flow_purpose'),t('flow_order'),t('flow_contact')], 2);
+    showOnly('step3P');
+
+  } else if (target === 'step0') {
+    renderFlowBar([t('flow_purpose')], 0);
+    ['booking','pickup'].forEach(tp => { const vc=document.getElementById('vc-'+tp); if(vc) vc.classList.remove('selected'); });
+    visitType = '';
+    showOnly('step0');
+
+  } else if (target === 'step1') {
+    renderFlowBar([t('flow_purpose'),t('flow_slot'),t('flow_product'),t('flow_contact')], 1);
+    showOnly('step1');
+
+  } else if (target === 'stepP') {
+    renderFlowBar([t('flow_purpose'),t('flow_order'),t('flow_contact')], 1);
+    showOnly('stepP');
+  }
+  window.scrollTo(0,0);
+}
+
+/* ── Chips / radios ── */
+function toggleChip(type, id, el) {
+  if (type === 'char') {
+    if (selChars.has(id)) { selChars.delete(id); el.classList.remove('on'); }
+    else { selChars.add(id); el.classList.add('on'); }
+  } else {
+    if (selTypes.has(id)) { selTypes.delete(id); el.classList.remove('on'); }
+    else { selTypes.add(id); el.classList.add('on'); }
+    document.getElementById('ring-size-wrap').style.display = selTypes.has('ring') ? 'block' : 'none';
+  }
+}
+function pickRadio(type, idx, el) {
+  const container = el.parentElement;
+  container.querySelectorAll('.radio-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  if (type === 'stone') selStoneIdx = idx;
+  else if (type === 'purpose') selPurposeIdx = idx;
+  else if (type === 'attendees') selAttendeesIdx = idx;
+}
+
+/* ── TG helpers ── */
+function normalizeTG(el) {
+  const v = el.value.toUpperCase();
+  el.value = (v && !v.startsWith('TG')) ? 'TG'+v : v;
+}
+function previewOrderImg(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('order-preview-img').src = e.target.result;
+    document.getElementById('order-preview').style.display = 'block';
+    const fname = file.name.toUpperCase();
+    const match = fname.match(/TG\d+/);
+    const msgEl = document.getElementById('tg-extract-msg');
+    if (match) {
+      document.getElementById('tg-order').value = match[0];
+      msgEl.textContent = t('tg_extracted') + match[0];
+      msgEl.style.color = 'var(--green-dark)';
+    } else {
+      msgEl.textContent = t('tg_manual');
+      msgEl.style.color = 'var(--muted)';
+    }
+    msgEl.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ── Date + slots ── */
+function isWeekday(d) { const dw=new Date(d+'T00:00:00').getDay(); return dw>=1&&dw<=5; }
+
+async function onDateChange(dateStr) {
+  if (!dateStr) return;
+  selectedDate = dateStr; selectedSlot = '';
+  document.getElementById('s1-next').style.display = 'none';
+  document.getElementById('slot-section').style.display = 'block';
+  if (!isWeekday(dateStr)) {
+    document.getElementById('slot-grid').innerHTML =
+      `<div class="loading" style="color:#e05050">${t('slot_closed')}</div>`;
+    return;
+  }
+  bookedSlots = [];
+  renderSlots();
+  if (!db) return;
+  try {
+    const { data, error } = await db.from('experience_bookings')
+      .select('time_slot, source, status, notes').eq('booking_date', dateStr).neq('status','已取消');
+    if (error) return;
+    const holidayRecord = (data||[]).find(r => r.source === '公休日');
+    if (holidayRecord) {
+      const reason = holidayRecord.notes && holidayRecord.notes !== '公休日' ? holidayRecord.notes : (lang==='en'?'Holiday':'公休');
+      document.getElementById('slot-grid').innerHTML =
+        `<div class="loading" style="color:#e53935;font-weight:600">🔴 ${reason}</div>`;
+      selectedSlot = '';
+      document.getElementById('s1-next').style.display = 'none';
+      return;
+    }
+    bookedSlots = (data||[]).map(r => r.time_slot);
+    renderSlots();
+  } catch(e) {}
+}
+
+function renderSlots() {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0,10);
+  const isMonday = new Date(selectedDate+'T00:00:00').getDay() === 1;
+  document.getElementById('slot-grid').innerHTML = SLOTS.map(slot => {
+    const [h,m] = slot.split(':').map(Number);
+    const dirBooked = bookedSlots.includes(slot);
+    const sisBooked = !dirBooked && bookedSlots.includes(sisterSlot(slot));
+    const occupied = dirBooked || sisBooked;
+    const past = selectedDate===todayStr && (h<now.getHours()||(h===now.getHours()&&m<=now.getMinutes()));
+    const monRule = !occupied && !past && isMonday && h < 16;
+    const chosen = slot===selectedSlot;
+    const unavail = occupied || past || monRule;
+    const cls = 'slot-btn' + (chosen?' chosen':unavail?' unavail':'');
+    const sub = chosen?t('slot_chosen'):(occupied||monRule)?t('slot_occupied'):past?t('slot_past'):'';
+    return `<div class="${cls}" onclick="${unavail?'':'selectSlot(\''+slot+'\')'}">${slot} ～ ${slotEnd(slot)}<div class="slot-sub">${sub}</div></div>`;
+  }).join('');
+}
+
+function selectSlot(slot) {
+  selectedSlot = slot;
+  renderSlots();
+  document.getElementById('s1-next').style.display = 'block';
+}
+
+/* ── Submit booking ── */
+async function submitBooking() {
+  const name  = document.getElementById('cust-name').value.trim();
+  const phone = document.getElementById('cust-phone').value.trim();
+  const errEl = document.getElementById('s3-err');
+  ['cust-name','cust-phone'].forEach(id=>document.getElementById(id).classList.remove('err'));
+  errEl.textContent = '';
+  let bad = false;
+  if(!name)  { document.getElementById('cust-name').classList.add('err');  bad=true; }
+  if(!phone) { document.getElementById('cust-phone').classList.add('err'); bad=true; }
+  if(bad) { errEl.textContent=t('s3_err'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled=true; btn.textContent=lang==='en'?'Submitting…':'送出中…';
+
+  if (db) {
+    const { data: chk } = await db.from('experience_bookings')
+      .select('time_slot,source').eq('booking_date',selectedDate)
+      .in('time_slot',[selectedSlot,sisterSlot(selectedSlot)]).neq('status','已取消');
+    if ((chk||[]).some(r=>r.source==='公休日')) {
+      errEl.textContent=t('conflict_holiday'); btn.disabled=false; btn.textContent=t('s3_submit');
+      await onDateChange(selectedDate); goStep('step1'); return;
+    }
+    if ((chk||[]).length > 0) {
+      errEl.textContent=t('conflict_slot'); btn.disabled=false; btn.textContent=t('s3_submit');
+      await onDateChange(selectedDate); goStep('step1'); return;
+    }
+  }
+
+  // Always build DB request string in Chinese
+  const chars_zh = [...selChars].map(id=>CHARACTERS.find(c=>c.id===id)?.label).filter(Boolean);
+  const otherChar = document.getElementById('char-other').value.trim();
+  if (otherChar) chars_zh.push(otherChar);
+  const types_zh = [...selTypes].map(id=>TYPES.find(tp=>tp.id===id)?.label_zh).filter(Boolean);
+  const ringSz = document.getElementById('ring-size').value.trim();
+  const prodNote = document.getElementById('prod-note').value.trim();
+  const custNotes = document.getElementById('cust-notes').value.trim();
+  const requestParts = [];
+  if (chars_zh.length) requestParts.push(`角色/系列：${chars_zh.join('、')}`);
+  if (types_zh.length) requestParts.push(`商品類型：${types_zh.join('、')}`);
+  if (selStoneIdx>=0)  requestParts.push(`石材：${STONES_ZH[selStoneIdx]}`);
+  if (ringSz)          requestParts.push(`戒圍：${ringSz}`);
+  if (selPurposeIdx>=0) requestParts.push(`目的：${PURPOSES_ZH[selPurposeIdx]}`);
+  if (prodNote)        requestParts.push(prodNote);
+
+  const { error } = await db.from('experience_bookings').insert({
+    booking_date: selectedDate, time_slot: selectedSlot,
+    customer_name: name, phone,
+    attendees: selAttendeesIdx + 1,
+    request: requestParts.join(' ／ '),
+    notes: custNotes || null,
+    source: '線上預約', status: '待確認',
+  });
+
+  if (error) { errEl.textContent=t('submit_fail'); btn.disabled=false; btn.textContent=t('s3_submit'); return; }
+
+  // Success
+  const chars_disp = [...selChars].map(id=>{const c=CHARACTERS.find(x=>x.id===id);return c?c[t('char_key')]:null;}).filter(Boolean);
+  if (otherChar) chars_disp.push(otherChar);
+  const types_disp = [...selTypes].map(id=>{const tp=TYPES.find(x=>x.id===id);return tp?tp[t('type_key')]:null;}).filter(Boolean);
+  const needsParts = [];
+  if (chars_disp.length) needsParts.push(chars_disp.join('、'));
+  if (types_disp.length) needsParts.push(types_disp.join('、'));
+  if (selStoneIdx >= 0)  needsParts.push(t('stones')[selStoneIdx]);
+  if (ringSz)            needsParts.push((lang==='en'?'Size: ':'')+ringSz);
+  document.querySelector('.page').innerHTML = `
+    <div class="success-wrap">
+      <div class="success-icon">🎉</div>
+      <h2>${t('success_booking_title')}</h2>
+      <p>${t('success_booking_msg')}</p>
+      <div class="detail-box">
+        📅 ${t('det_date_label')}：${fmtDate(selectedDate)}<br>
+        ⏰ ${t('det_time_label')}：${selectedSlot} ～ ${slotEnd(selectedSlot)}（30 ${t('det_minutes')}）<br>
+        👤 ${t('det_name_label')}：${name}<br>
+        📞 ${t('det_phone_label')}：${phone}<br>
+        👥 ${t('det_guests_label')}：${selAttendeesIdx+1} ${t('det_guests_unit')}${needsParts.length?`<br>✨ ${t('det_req_label')}：${needsParts.join('　')}`:''}
+      </div>
+      <div class="notice-box" style="text-align:left;margin-bottom:12px;background:#fff0f0;border:1px solid #f5c0c0;color:#c0392b">
+        💬 ${t('det_req_notice')}
+      </div>
+      <div class="next-box">${t('success_booking_next')}</div>
+    </div>`;
+}
+
+/* ── Submit pickup ── */
+async function submitPickup() {
+  const name  = document.getElementById('pickup-name').value.trim();
+  const phone = document.getElementById('pickup-phone').value.trim();
+  const tg    = document.getElementById('tg-order').value.trim().toUpperCase();
+  const notes = document.getElementById('pickup-notes').value.trim();
+  const errEl = document.getElementById('s3P-err');
+  errEl.textContent='';
+  ['pickup-name','pickup-phone'].forEach(id=>document.getElementById(id).classList.remove('err'));
+  let bad=false;
+  if(!name)  { document.getElementById('pickup-name').classList.add('err');  bad=true; }
+  if(!phone) { document.getElementById('pickup-phone').classList.add('err'); bad=true; }
+  if(bad) { errEl.textContent=t('s3P_err'); return; }
+
+  const btn = document.getElementById('submit-pickup-btn');
+  btn.disabled=true; btn.textContent=lang==='en'?'Submitting…':'送出中…';
+
+  const today = new Date().toISOString().slice(0,10);
+  const { error } = await db.from('experience_bookings').insert({
+    booking_date: today, time_slot: null,
+    customer_name: name, phone, attendees: 1,
+    request: `門市取貨 訂單編號：${tg}`,
+    notes: notes||null, source: '門市取貨', status: '待確認',
+  });
+
+  if (error) { errEl.textContent=t('submit_fail'); btn.disabled=false; btn.textContent=t('s3P_submit'); return; }
+
+  document.querySelector('.page').innerHTML = `
+    <div class="success-wrap">
+      <div class="success-icon">📦</div>
+      <h2>${t('success_pickup_title')}</h2>
+      <p>${t('success_pickup_msg')}</p>
+      <div class="detail-box">
+        ${t('sum_order')}<strong>${tg}</strong><br>
+        ${t('det_name')} ${name}&emsp;${t('det_phone')} ${phone}${notes?`<br>📝 ${notes}`:''}
+      </div>
+      <div class="next-box">${t('success_pickup_next')}</div>
+    </div>`;
+}
+
+/* ── Init ── */
+try {
+  renderFlowBar([t('flow_purpose')], 0);
+  showOnly('step0');
+  renderStoreInfo();
+  applyLang();
+  var tm = new Date(); tm.setDate(tm.getDate()+1);
+  document.getElementById('pick-date').min = tm.toISOString().slice(0,10);
+  var dp = document.getElementById('pick-date');
+  dp.addEventListener('change', function(){ onDateChange(this.value); });
+  dp.addEventListener('input',  function(){ onDateChange(this.value); });
+} catch(initErr) {
+  console.warn('init error:', initErr);
+}
+</script>
+</body>
+</html>
