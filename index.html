@@ -1043,23 +1043,84 @@ function normalizeTG(el) {
   const v = el.value.toUpperCase();
   el.value = (v && !v.startsWith('TG')) ? 'TG'+v : v;
 }
+let _claudeApiKey = null;
+async function _getClaudeKey() {
+  if (_claudeApiKey) return _claudeApiKey;
+  if (!db) return null;
+  try {
+    const { data } = await db.from('settings').select('value').eq('key','claude_api_key').maybeSingle();
+    _claudeApiKey = data?.value || null;
+  } catch(e) {}
+  return _claudeApiKey;
+}
+
 function previewOrderImg(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('order-preview-img').src = e.target.result;
-    document.getElementById('order-preview').style.display = 'block';
-    const fname = file.name.toUpperCase();
-    const match = fname.match(/TG\d+/);
+  reader.onload = async e => {
+    const dataUrl = e.target.result;
     const msgEl = document.getElementById('tg-extract-msg');
-    if (match) {
-      document.getElementById('tg-order').value = match[0];
-      msgEl.textContent = t('tg_extracted') + match[0];
+
+    // 1. 先從檔名快速比對
+    const fname = file.name.toUpperCase();
+    const fnMatch = fname.match(/TG[0-9A-Z]{8,}/);
+    if (fnMatch) {
+      document.getElementById('tg-order').value = fnMatch[0];
+      msgEl.textContent = (t('tg_extracted') || '✓ 已從截圖擷取訂單編號：') + fnMatch[0];
       msgEl.style.color = 'var(--green-dark)';
-    } else {
-      msgEl.textContent = t('tg_manual');
+      msgEl.style.display = 'block';
+      input.value = '';  // 清除已選檔案
+      return;
+    }
+
+    // 2. 用 Claude Vision 辨識圖片內容
+    msgEl.textContent = '🔍 辨識中…';
+    msgEl.style.color = 'var(--muted)';
+    msgEl.style.display = 'block';
+
+    try {
+      const apiKey = await _getClaudeKey();
+      if (!apiKey) throw new Error('no key');
+      const base64 = dataUrl.split(',')[1];
+      const mediaType = file.type || 'image/jpeg';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 64,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              { type: 'text', text: '請找出這張截圖中的「購物車編號」（TG開頭的編號，格式例如 TG260522BA009T）。只回傳編號本身，不要其他文字。若找不到則回傳「無」。' }
+            ]
+          }]
+        })
+      });
+      const json = await resp.json();
+      const text = (json?.content?.[0]?.text || '').trim().toUpperCase();
+      const aiMatch = text.match(/TG[0-9A-Z]{8,}/);
+      if (aiMatch) {
+        document.getElementById('tg-order').value = aiMatch[0];
+        msgEl.textContent = (t('tg_extracted') || '✓ 已從截圖擷取訂單編號：') + aiMatch[0];
+        msgEl.style.color = 'var(--green-dark)';
+        input.value = '';  // 辨識成功，清除圖檔
+      } else {
+        msgEl.textContent = t('tg_manual') || '請在上方手動輸入訂單編號';
+        msgEl.style.color = 'var(--muted)';
+        input.value = '';  // 清除圖檔
+      }
+    } catch(err) {
+      msgEl.textContent = t('tg_manual') || '請在上方手動輸入訂單編號';
       msgEl.style.color = 'var(--muted)';
+      input.value = '';  // 清除圖檔
     }
     msgEl.style.display = 'block';
   };
