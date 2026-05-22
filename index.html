@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>STORY 體驗店預約申請</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --green: #50a87a;
@@ -1064,63 +1065,50 @@ function previewOrderImg(input) {
 
     // 1. 先從檔名快速比對
     const fname = file.name.toUpperCase();
-    const fnMatch = fname.match(/TG[0-9A-Z]{8,}/);
+    const fnMatch = fname.match(/TG[0-9A-Z]{12}/);
     if (fnMatch) {
       document.getElementById('tg-order').value = fnMatch[0];
       msgEl.textContent = (t('tg_extracted') || '✓ 已從截圖擷取訂單編號：') + fnMatch[0];
       msgEl.style.color = 'var(--green-dark)';
       msgEl.style.display = 'block';
-      input.value = '';  // 清除已選檔案
+      input.value = '';
       return;
     }
 
-    // 2. 用 Claude Vision 辨識圖片內容
-    msgEl.textContent = '🔍 辨識中…';
+    // 2. 用 Tesseract.js OCR 辨識（純瀏覽器端，不需 API Key）
+    msgEl.textContent = '🔍 辨識中，請稍候…';
     msgEl.style.color = 'var(--muted)';
     msgEl.style.display = 'block';
 
     try {
-      const apiKey = await _getClaudeKey();
-      if (!apiKey) throw new Error('no key');
-      const base64 = dataUrl.split(',')[1];
-      const mediaType = file.type || 'image/jpeg';
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 64,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-              { type: 'text', text: '請找出這張截圖中的「購物車編號」（TG開頭的編號，格式例如 TG260522BA009T）。只回傳編號本身，不要其他文字。若找不到則回傳「無」。' }
-            ]
-          }]
-        })
+      if (typeof Tesseract === 'undefined') throw new Error('OCR 模組未載入');
+      const result = await Tesseract.recognize(dataUrl, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            msgEl.textContent = '🔍 辨識中 ' + Math.round((m.progress||0)*100) + '%…';
+          }
+        }
       });
-      const json = await resp.json();
-      const text = (json?.content?.[0]?.text || '').trim().toUpperCase();
-      const aiMatch = text.match(/TG[0-9A-Z]{8,}/);
-      if (aiMatch) {
-        document.getElementById('tg-order').value = aiMatch[0];
-        msgEl.textContent = (t('tg_extracted') || '✓ 已從截圖擷取訂單編號：') + aiMatch[0];
+      const text = (result.data.text || '').toUpperCase().replace(/\s+/g, '');
+      console.log('OCR text:', text);
+      // TG 訂單格式：TG + 12 位英數字（共 14 碼），最多允許到 15 碼
+      const TG_RE = /TG[0-9A-Z]{12}/;
+      const match = text.match(TG_RE);
+      if (match) {
+        document.getElementById('tg-order').value = match[0];
+        msgEl.textContent = (t('tg_extracted') || '✓ 已從截圖擷取訂單編號：') + match[0];
         msgEl.style.color = 'var(--green-dark)';
-        input.value = '';  // 辨識成功，清除圖檔
+        input.value = '';
       } else {
-        msgEl.textContent = t('tg_manual') || '請在上方手動輸入訂單編號';
+        msgEl.textContent = '找不到 TG 訂單編號，請手動輸入';
         msgEl.style.color = 'var(--muted)';
-        input.value = '';  // 清除圖檔
+        input.value = '';
       }
     } catch(err) {
-      msgEl.textContent = t('tg_manual') || '請在上方手動輸入訂單編號';
-      msgEl.style.color = 'var(--muted)';
-      input.value = '';  // 清除圖檔
+      console.error('OCR error:', err);
+      msgEl.textContent = '⚠ 辨識失敗（' + (err.message||err) + '），請手動輸入';
+      msgEl.style.color = '#e53935';
+      input.value = '';
     }
     msgEl.style.display = 'block';
   };
